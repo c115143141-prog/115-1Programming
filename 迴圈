@@ -1,5 +1,0 @@
-
-sun=0
-for i in range(10):
-    sun=sun+(i+1)
-print(sun)
