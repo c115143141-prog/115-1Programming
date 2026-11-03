@@ -21,6 +21,11 @@ try:
 except Exception:
     pass
 
+try:
+    ctypes.windll.winmm.timeBeginPeriod(1)   # 讓 time.sleep 有 1 ms 精度
+except Exception:
+    pass
+
 pyautogui.PAUSE = 0              # 取消 pyautogui 每次呼叫後固定的 0.1 秒延遲
 
 # 棋盤範圍與格子
@@ -34,8 +39,8 @@ ROUND_TIME = 62                  # 一局約 60 秒
 START_DELAY = 5              # 幾秒後開始動作
 STILL_LIMIT = 8                  # 連續找不到步就判定結束
 SETTLE_TIMEOUT = 2.0             # 等盤面穩定的上限
-POLL_INTERVAL = 0.1              # 每 0.1 秒重新偵測一次
-SWAP_DURATION = 0.01             # 滑鼠拖曳交換的秒數（越小越快）
+POLL_INTERVAL = 0.01             # 每 0.01 秒重新偵測一次
+SWAP_DURATION = 0.1              # 滑鼠拖曳交換的秒數（越小越快）
 SWAP_CONFIRM = 0.35              # 交換後確認盤面有變化的最長時間
 DRY_RUN = True                   # 預設只偵測、不動滑鼠；用 play 模式才會真的操作
 MAX_FAILS = 5                    # 連續幾次交換沒生效就停手（避免一直拉滑鼠）
@@ -49,7 +54,81 @@ SYM = {"red": "R", "orange": "O", "yellow": "Y", "green": "G",
        "blue": "B", "purple": "P", "white": "W", "empty": ".", "unknown": "?"}
 
 
+# =========================
+# 快速截圖（GDI BitBlt，比 ImageGrab 快很多，才追得上 0.01 秒）
+# =========================
+user32 = ctypes.windll.user32
+gdi32 = ctypes.windll.gdi32
+
+user32.GetDC.restype = ctypes.c_void_p
+user32.GetDC.argtypes = [ctypes.c_void_p]
+gdi32.CreateCompatibleDC.restype = ctypes.c_void_p
+gdi32.CreateCompatibleDC.argtypes = [ctypes.c_void_p]
+gdi32.CreateCompatibleBitmap.restype = ctypes.c_void_p
+gdi32.CreateCompatibleBitmap.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int]
+gdi32.SelectObject.restype = ctypes.c_void_p
+gdi32.SelectObject.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+gdi32.BitBlt.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int,
+                         ctypes.c_int, ctypes.c_int, ctypes.c_void_p,
+                         ctypes.c_int, ctypes.c_int, ctypes.c_uint]
+gdi32.GetDIBits.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_uint,
+                            ctypes.c_uint, ctypes.c_void_p, ctypes.c_void_p,
+                            ctypes.c_uint]
+
+
+class BITMAPINFOHEADER(ctypes.Structure):
+    _fields_ = [
+        ("biSize", ctypes.c_uint32), ("biWidth", ctypes.c_int32),
+        ("biHeight", ctypes.c_int32), ("biPlanes", ctypes.c_uint16),
+        ("biBitCount", ctypes.c_uint16), ("biCompression", ctypes.c_uint32),
+        ("biSizeImage", ctypes.c_uint32), ("biXPelsPerMeter", ctypes.c_int32),
+        ("biYPelsPerMeter", ctypes.c_int32), ("biClrUsed", ctypes.c_uint32),
+        ("biClrImportant", ctypes.c_uint32),
+    ]
+
+
+class BITMAPINFO(ctypes.Structure):
+    _fields_ = [("bmiHeader", BITMAPINFOHEADER),
+                ("bmiColors", ctypes.c_uint32 * 3)]
+
+
+try:
+    _screen = user32.GetDC(0)
+    _memdc = gdi32.CreateCompatibleDC(_screen)
+
+    _bmi = BITMAPINFO()
+    _bmi.bmiHeader.biSize = ctypes.sizeof(BITMAPINFOHEADER)
+    _bmi.bmiHeader.biWidth = WIDTH
+    _bmi.bmiHeader.biHeight = -HEIGHT       # 負值代表由上往下
+    _bmi.bmiHeader.biPlanes = 1
+    _bmi.bmiHeader.biBitCount = 32
+    _bmi.bmiHeader.biCompression = 0        # BI_RGB
+
+    gdi32.CreateDIBSection.restype = ctypes.c_void_p
+    gdi32.CreateDIBSection.argtypes = [
+        ctypes.c_void_p, ctypes.POINTER(BITMAPINFO), ctypes.c_uint,
+        ctypes.POINTER(ctypes.c_void_p), ctypes.c_void_p, ctypes.c_uint]
+    _bits = ctypes.c_void_p()
+    _dib = gdi32.CreateDIBSection(_memdc, ctypes.byref(_bmi), 0,
+                                  ctypes.byref(_bits), None, 0)
+    gdi32.SelectObject(_memdc, _dib)
+    # 直接讀 DIB 記憶體（B,G,R,A），不再複製，也不會多一次格式轉換
+    _buf = (ctypes.c_ubyte * (WIDTH * HEIGHT * 4)).from_address(_bits.value)
+    _GDI_OK = bool(_dib and _bits.value)
+except Exception:
+    _GDI_OK = False
+
+
 def capture():
+    if _GDI_OK:
+        try:
+            gdi32.BitBlt(_memdc, 0, 0, WIDTH, HEIGHT, _screen, LEFT, TOP,
+                         0x00CC0020)        # SRCCOPY
+            img = np.frombuffer(_buf, np.uint8).reshape(HEIGHT, WIDTH, 4)
+            return img[:, :, :3]
+        except Exception:
+            pass
+
     img = ImageGrab.grab(bbox=(LEFT, TOP, RIGHT, BOTTOM), all_screens=True)
     return cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
 
@@ -251,16 +330,15 @@ def main():
     print(f"{START_DELAY} 秒後開始，請先切換到遊戲畫面（按 q 停止）")
     time.sleep(START_DELAY)
 
-    start = time.time()
-    tick = start
+    start = tick = time.perf_counter()
     moves = still = fail = 0
     skip = None
 
     while not stop_pressed():
-        # 每 0.1 秒重新偵測（扣掉偵測本身花的時間）
-        time.sleep(max(0.0, POLL_INTERVAL - (time.time() - tick)))
-        tick = time.time()
-        elapsed = time.time() - start
+        # 每 0.01 秒重新偵測（扣掉偵測本身花的時間）
+        time.sleep(max(0.0, POLL_INTERVAL - (time.perf_counter() - tick)))
+        tick = time.perf_counter()
+        elapsed = tick - start
         if elapsed >= ROUND_TIME:
             print(f"時間到（{elapsed:.1f} 秒）")
             break
@@ -308,7 +386,7 @@ def main():
                       "或把 SWAP_DURATION 調大（例如 0.05）")
                 break
 
-    print(f"結束：共交換 {moves} 次，耗時 {time.time() - start:.1f} 秒")
+    print(f"結束：共交換 {moves} 次，耗時 {time.perf_counter() - start:.1f} 秒")
 
 
 if __name__ == "__main__":

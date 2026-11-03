@@ -67,9 +67,9 @@ def gem_pos(r, c):
 # 時間與流程設定
 # =========================
 ROUND_TIME = 62          # Bejeweled Blitz 一局約 60 秒，留一點緩衝
-START_DELAY = 10         # 按下執行後，等幾秒才開始動作
+START_DELAY = 5       # 按下執行後，等幾秒才開始動作
 STILL_LIMIT = 8          # 連續幾次找不到步可走，就判定遊戲結束
-SETTLE_TIMEOUT = 2.0     # 等棋盤穩定的最長時間（秒）
+SETTLE_TIMEOUT = 0.01 # 等棋盤穩定的最長時間（秒）
 VERBOSE = True           # 是否印出每次辨識到的棋盤
 
 # 不列入消除判斷的格子
