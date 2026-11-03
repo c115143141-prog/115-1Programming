@@ -1,98 +1,23 @@
-import ctypes
 import time
 import mss
+import numpy as np
+import pyautogui
 
-# Windows 按鍵控制
-user32 = ctypes.windll.user32
-VK_SPACE = 0x20
+# 更新後的範圍：X=1101~1200 (寬度99), Y=430~466 (高度36)
+BOX = {"top": 430, "left": 1101, "width": 99, "height": 36}
 
-# =========================
-# 偵測範圍
-# =========================
-LEFT = 1200
-TOP = 369
-WIDTH = 1230 - 1200 + 1
-HEIGHT = 398 - 369 + 1
-
-# =========================
-# 目標顏色：RGB [83, 83, 83]
-# =========================
-TARGET_COLOR = (83, 83, 83)
-COLOR_TOLERANCE = 0
-
-# =========================
-# 跳躍冷卻時間
-# =========================
-COOLDOWN = 0.01
-last_jump = 0
-
-
-def jump():
-    # 按下空白鍵
-    user32.keybd_event(VK_SPACE, 0, 0, 0)
-    time.sleep(0.04)
-
-    # 放開空白鍵
-    user32.keybd_event(VK_SPACE, 0, 2, 0)
-
-
-def is_target_color(r, g, b):
-    return (
-        abs(r - TARGET_COLOR[0]) <= COLOR_TOLERANCE
-        and abs(g - TARGET_COLOR[1]) <= COLOR_TOLERANCE
-        and abs(b - TARGET_COLOR[2]) <= COLOR_TOLERANCE
-    )
-
-
-def detect_cactus(shot):
-    for x in range(shot.width):
-        for y in range(shot.height):
-            r, g, b = shot.pixel(x, y)
-
-            if is_target_color(r, g, b):
-                screen_x = LEFT + x
-                screen_y = TOP + y
-
-                print(
-                    f"偵測到顏色 {r, g, b}，"
-                    f"座標 X={screen_x}, Y={screen_y}"
-                )
-                return True
-
-    return False
-
-
-print("3 秒後開始偵測")
-print("請開啟 Chrome 恐龍遊戲")
-print("偵測 X：1200～1230")
-print("偵測 Y：369～398")
-print("目標 RGB 顏色：[83, 83, 83]")
-print("顏色誤差：0（完全符合才觸發）")
-print("按 Ctrl+C 停止程式")
-
+print("3秒內請切換到遊戲畫面...")
 time.sleep(3)
+pyautogui.press("space")
 
-region = {
-    "left": LEFT,
-    "top": TOP,
-    "width": WIDTH,
-    "height": HEIGHT
-}
-
-try:
-    with mss.mss() as sct:
-        while True:
-            shot = sct.grab(region)
-            found = detect_cactus(shot)
-
-            now = time.time()
-
-            if found and now - last_jump >= COOLDOWN:
-                jump()
-                last_jump = now
-                print(">>> 跳躍！")
-
-            time.sleep(0.005)
-
-except KeyboardInterrupt:
-    print("\n程式已停止")
+with mss.mss() as sct:
+    while True:
+        img = np.array(sct.grab(BOX))[:, :, :3]
+        if len(np.unique(img.reshape(-1, 3), axis=0)) > 1:
+            pyautogui.press("space")  # 跳躍
+            time.sleep(0.2)  # 跳躍冷卻時間 0.2 秒
+ 
+             # 按住向下鍵 0.2 秒快速下墜
+            pyautogui.keyDown("down")
+            time.sleep(0.2)
+            pyautogui.keyUp("down")

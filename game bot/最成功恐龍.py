@@ -3,42 +3,53 @@ import time
 import mss
 
 user32 = ctypes.windll.user32
-LEFT, TOP = 1190, 373
-WIDTH, HEIGHT = 1230 - LEFT + 1, 441 - TOP + 1
-COLOR = (83, 83, 83)
-MIN_X = 1100
+
+region = {
+    "left": 1190,
+    "top": 400,
+    "width": 51,
+    "height": 46
+}
+
+last = 0
 COOLDOWN = 0.1
-last_jump = 0
+
 
 def jump():
+    # 空白鍵
     user32.keybd_event(0x20, 0, 0, 0)
     time.sleep(0.03)
     user32.keybd_event(0x20, 0, 2, 0)
 
-region = {
-    "left": LEFT, "top": TOP,
-    "width": WIDTH, "height": HEIGHT
-}
 
 time.sleep(3)
 
-try:
-    with mss.mss() as sct:
+with mss.mss() as sct:
+    try:
         while True:
-            shot = sct.grab(region)
-            found = any(
-                LEFT + x > MIN_X and shot.pixel(x, y) == COLOR
-                for x in range(shot.width)
-                for y in range(shot.height)
-            )
+            img = sct.grab(region)
 
-            now = time.time()
-            if found and now - last_jump >= COOLDOWN:
+            # 偵測區域內是否有明顯不是背景的物體
+            found = False
+
+            for x in range(img.width):
+                for y in range(img.height):
+                    r, g, b = img.pixel(x, y)
+
+                    # 只要像素不是接近白色，就視為有物體
+                    if r < 200 or g < 200 or b < 200:
+                        found = True
+                        break
+
+                if found:
+                    break
+
+            # 發現物體 → 跳
+            if found and time.time() - last >= COOLDOWN:
                 jump()
-                last_jump = now
-                print("跳躍！")
+                last = time.time()
 
-            time.sleep(0.005)
+            time.sleep(0.001)
 
-except KeyboardInterrupt:
-    print("程式已停止") 
+    except KeyboardInterrupt:
+        pass  
