@@ -2,8 +2,8 @@ import time, ctypes, mss
 
 u = ctypes.windll.user32
 
-LEFT, TOP = 1100, 374
-RIGHT, BOTTOM = 1180, 411
+LEFT, TOP = 1150, 442
+RIGHT, BOTTOM = 1220, 488
 start = time.time()
 
 def detect(img, w, h):
@@ -14,7 +14,7 @@ def detect(img, w, h):
 
 def jump():
     u.keybd_event(32, 0, 0, 0)
-    time.sleep(0.09)
+    time.sleep(0.075)
     u.keybd_event(32, 0, 2, 0)
 
 with mss.mss() as s:
