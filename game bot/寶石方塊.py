@@ -40,8 +40,8 @@ except Exception:
 # =========================
 # 棋盤位置（螢幕座標）
 # =========================
-LEFT, TOP = 1440, 470
-RIGHT, BOTTOM = 1834, 864
+LEFT, TOP = 498, 373
+RIGHT, BOTTOM = 816, 690
 WIDTH, HEIGHT = RIGHT - LEFT, BOTTOM - TOP
 N = 8
 
@@ -68,9 +68,9 @@ def gem_pos(r, c):
 # 時間與流程設定
 # =========================
 ROUND_TIME = 65       # Bejeweled Blitz 一局約 60 秒，留一點緩衝
-START_DELAY = 5       # 按下執行後，等幾秒才開始動作
+START_DELAY = 8       # 按下執行後，等幾秒才開始動作
 STILL_LIMIT = 8          # 連續幾次找不到步可走，就判定遊戲結束
-SETTLE_TIMEOUT = 0.25 # 等棋盤穩定的最長時間（秒）
+SETTLE_TIMEOUT = 0.15 # 等棋盤穩定的最長時間（秒）
 VERBOSE = True           # 是否印出每次辨識到的棋盤
 
 # 不列入消除判斷的格子
