@@ -5,7 +5,7 @@ from PIL import ImageGrab
 # 核心強制：關閉所有內建按鍵延遲
 pyg.PAUSE = 0
 
-
+           
 DETECTION_X_START =  90
 DETECTION_X_END   =  272                                                                                                                                                                                                                                
         
